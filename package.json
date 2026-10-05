@@ -1,6 +1,6 @@
 {
   "name": "omp-rewrite",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "/rewrite: turns a draft prompt into a thorough one, asking clarifying questions first, via a /btw-style side turn",
   "license": "MIT",
