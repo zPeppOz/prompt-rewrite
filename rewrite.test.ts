@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { MAX_QUESTIONS, parseQuestions, previewRows, rewritePrompt } from "./rewrite";
+import { MAX_QUESTIONS, parseQuestions, previewRows, questionsPrompt, rewritePrompt, withTranscript } from "./rewrite";
 
 const option = (label: string) => ({ label });
 
@@ -50,6 +50,24 @@ describe("rewritePrompt", () => {
 		const one = rewritePrompt(draft, [], { global: "G", mode: "append" });
 		expect(both).toContain("project instructions win");
 		expect(one).not.toContain("project instructions win");
+	});
+});
+
+describe("withTranscript", () => {
+	const prompt = questionsPrompt("fix the login bug");
+
+	test("puts the conversation before the unchanged side-turn prompt", () => {
+		const request = withTranscript("[User]: the login fails\n\n[Assistant]: see auth.ts", prompt);
+		const block = "<conversation>\n[User]: the login fails\n\n[Assistant]: see auth.ts\n</conversation>";
+		expect(request).toContain(block);
+		expect(request.endsWith(`\n\n${prompt}`)).toBe(true);
+		expect(request.indexOf(block)).toBeLessThan(request.indexOf(prompt));
+	});
+
+	test("an empty session sends no conversation block", () => {
+		const request = withTranscript("  \n", prompt);
+		expect(request).not.toContain("<conversation>");
+		expect(request.endsWith(`\n\n${prompt}`)).toBe(true);
 	});
 });
 

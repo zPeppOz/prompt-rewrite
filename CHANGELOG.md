@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- A `rewrite` model role to run `/rewrite` on a model other than the session's. The extension lists it as **Rewrite** in omp's model selector (`/model` → Roles) without writing any file. omp saves the choice as `modelRoles.rewrite`, with an optional thinking level (`provider/id:low`).
+- On a model other than the session's, `/rewrite` sends the requests itself, because omp's side turns always use the session model. The model gets the session's system prompt and the conversation as a transcript; secrets are obfuscated as in the session when `secrets.enabled` is on. Without the role, or with the session's model and thinking level, nothing changes.
+- A role pointing to an unavailable model shows a warning, and `/rewrite` uses the session's model.
+
 ## [0.3.0] - 2026-09-29
 
 ### Added

@@ -2,8 +2,9 @@ import type { ExtensionAskDialogOption, ExtensionAskDialogQuestion } from "@oh-m
 import type { CustomInstructions } from "./instructions";
 
 /**
- * Logica pura di /rewrite, senza dipendenze dall'host: i due prompt, la lettura
- * delle domande restituite dal modello e l'impaginazione dell'anteprima.
+ * Logica pura di /rewrite, senza dipendenze dall'host: i due prompt, la cornice
+ * della trascrizione per il modello del ruolo, la lettura delle domande restituite
+ * dal modello e l'impaginazione dell'anteprima.
  */
 
 export const MAX_QUESTIONS = 4;
@@ -35,6 +36,8 @@ The rewritten prompt must:
 - Stay dense: short headings or bullets where they help, no filler, no meta-commentary.
 
 Output ONLY the rewritten prompt text: no preamble, no code fences, no closing remarks.`;
+
+const OUT_OF_SESSION = `This request runs outside the live session: no tools are available, so reply with plain text only, never with tool calls.`;
 
 export interface Answer {
 	question: string;
@@ -80,6 +83,18 @@ export function rewritePrompt(draft: string, answers: readonly Answer[], custom?
 	if (!custom) return `${REWRITE_PROMPT}\n\n${data}`;
 	const block = customInstructionsBlock(custom);
 	return custom.mode === "replace" ? `${block}\n\n${data}` : `${REWRITE_PROMPT}\n\n${block}\n\n${data}`;
+}
+
+/**
+ * Richiesta per il modello del ruolo `rewrite`, che non vede la sessione: la conversazione
+ * arriva come trascrizione (`[User]`, `[Assistant]`, `[Tool Call]`, `[Tool Result]`) prima
+ * del prompt delle domande o della riscrittura, che resta lo stesso del side turn.
+ */
+export function withTranscript(transcript: string, promptText: string): string {
+	const conversation = transcript.trim()
+		? `The conversation so far between the user and you, as a transcript ([Assistant] is you; long tool outputs are truncated):\n<conversation>\n${transcript.trim()}\n</conversation>`
+		: "The conversation has no messages yet.";
+	return `${OUT_OF_SESSION}\n\n${conversation}\n\n${promptText}`;
 }
 
 /**

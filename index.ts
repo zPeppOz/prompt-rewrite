@@ -12,6 +12,7 @@ import {
 	resolveInstructions,
 	type Scope,
 } from "./instructions";
+import { pickTarget, roleTurn, sessionTurn, showRoleInSelector, type Turn } from "./model";
 import { type Answer, parseQuestions, previewRows, questionsPrompt, rewritePrompt } from "./rewrite";
 import { type HostSettings, projectConfigPath, saveGlobal, saveProject } from "./storage";
 
@@ -21,7 +22,8 @@ import { type HostSettings, projectConfigPath, saveGlobal, saveProject } from ".
  * Side turn stile /btw: usa il contesto della sessione corrente e non scrive nulla
  * nella history. Flusso: domande di direzione (0–4) → riscrittura → composer.
  * Le istruzioni personalizzate (globali e di progetto) si aggiungono al prompt di
- * riscrittura, o lo sostituiscono.
+ * riscrittura, o lo sostituiscono. Il ruolo `rewrite` del selettore dei modelli
+ * (/model) sceglie un modello diverso da quello della sessione.
  *
  * /rewrite-settings
  *
@@ -36,9 +38,9 @@ const PREVIEW_INTERVAL_MS = 100;
 const ESCAPE = /^\x1b(\[27(;1)?u)?$/;
 // Prima versione di omp con ctx.runEphemeralTurn per le estensioni.
 const MIN_OMP_VERSION = "18.3.0";
+// Prima versione di omp con il registry delle impostazioni (tag del ruolo, /rewrite-settings).
+const REGISTRY_OMP_VERSION = "18.3.1";
 const CANCELLED = "/rewrite: cancelled; draft restored to the composer";
-
-type RunEphemeralTurn = NonNullable<ExtensionCommandContext["runEphemeralTurn"]>;
 
 /** Mostra le domande; `undefined` = l'utente ha annullato. */
 async function askQuestions(
@@ -73,12 +75,12 @@ async function askQuestions(
 }
 
 /**
- * Side turn con widget di avanzamento sopra il composer; Esc annulla (solo TUI).
+ * Richiesta con widget di avanzamento sopra il composer; Esc annulla (solo TUI).
  * `undefined` = annullato dall'utente.
  */
 async function sideTurn(
 	ctx: ExtensionCommandContext,
-	runEphemeralTurn: RunEphemeralTurn,
+	turn: Turn,
 	label: string,
 	promptText: string,
 	{ preview }: { preview: boolean },
@@ -105,15 +107,11 @@ async function sideTurn(
 	});
 	render();
 	try {
-		const { replyText } = await runEphemeralTurn({
-			promptText,
-			// Di default omp accorcia la risposta a 4 KiB (con "[…truncated]" in coda) e
-			// comprime le righe ripetute: pensato per /btw, rovina un prompt riscritto o il JSON delle domande.
-			dedupeReply: false,
+		const replyText = await turn(promptText, {
 			signal: controller.signal,
-			onTextDelta: preview
-				? delta => {
-						streamed += delta;
+			onText: preview
+				? text => {
+						streamed = text;
 						const now = Date.now();
 						if (now - lastRender < PREVIEW_INTERVAL_MS) return;
 						lastRender = now;
@@ -138,11 +136,11 @@ function putInComposer(ctx: ExtensionCommandContext, text: string): void {
 	ctx.ui.setEditorText(current.trim() ? `${current.trimEnd()}\n\n${text}` : text);
 }
 
-/** Domande → riscrittura → composer. Su annullamento o errore la bozza torna nel composer. */
+/** Modello → domande → riscrittura → composer. Su annullamento o errore la bozza torna nel composer. */
 async function rewrite(
 	ctx: ExtensionCommandContext,
-	runEphemeralTurn: RunEphemeralTurn,
-	settings: HostSettings,
+	pi: ExtensionAPI,
+	runEphemeralTurn: NonNullable<ExtensionCommandContext["runEphemeralTurn"]>,
 	draft: string,
 ): Promise<void> {
 	const restore = (message: string, type: "info" | "error") => {
@@ -150,9 +148,14 @@ async function rewrite(
 		ctx.ui.notify(message, type);
 	};
 	try {
-		const analysis = await sideTurn(ctx, runEphemeralTurn, "analyzing the draft", questionsPrompt(draft), {
-			preview: false,
-		});
+		// Le impostazioni si leggono qui, non all'avvio: valgono le ultime modifiche.
+		const settings = pi.pi.settings;
+		const { target, warning } = await pickTarget(ctx, settings, pi.getThinkingLevel());
+		if (warning) ctx.ui.notify(warning, "warning");
+		const turn = target.kind === "role" ? await roleTurn(ctx, pi.pi, settings, target) : sessionTurn(runEphemeralTurn);
+		const via = target.kind === "role" ? ` · ${target.model.provider}/${target.model.id}` : "";
+
+		const analysis = await sideTurn(ctx, turn, `analyzing the draft${via}`, questionsPrompt(draft), { preview: false });
 		if (analysis === undefined) return restore(CANCELLED, "info");
 
 		const questions = parseQuestions(analysis);
@@ -165,10 +168,9 @@ async function rewrite(
 			answers = answered;
 		}
 
-		// Le impostazioni si leggono qui, non all'avvio: valgono le ultime modifiche.
 		const { custom, warnings } = resolveInstructions(settings.getGlobalSettings(), settings.getProjectSettings());
 		for (const warning of warnings) ctx.ui.notify(warning, "warning");
-		const rewritten = await sideTurn(ctx, runEphemeralTurn, "rewriting the prompt", rewritePrompt(draft, answers, custom), {
+		const rewritten = await sideTurn(ctx, turn, `rewriting the prompt${via}`, rewritePrompt(draft, answers, custom), {
 			preview: true,
 		});
 		if (rewritten === undefined) return restore(CANCELLED, "info");
@@ -247,6 +249,11 @@ async function editInstructions(ctx: ExtensionCommandContext, settings: HostSett
 export default function rewriteExtension(pi: ExtensionAPI) {
 	let busy = false;
 
+	// Il ruolo `rewrite` compare nel selettore dei modelli (/model → Roles) senza scrivere file.
+	pi.on("session_start", async () => {
+		if (Bun.semver.order(pi.pi.VERSION, REGISTRY_OMP_VERSION) >= 0) await showRoleInSelector(pi.pi.settings);
+	});
+
 	pi.registerCommand("rewrite", {
 		description: "Rewrite a draft into a thorough prompt, asking about its direction first (/btw-style side turn)",
 		handler: async (args, ctx) => {
@@ -275,7 +282,7 @@ export default function rewriteExtension(pi: ExtensionAPI) {
 					ctx.ui.notify("/rewrite: empty draft; usage: /rewrite <draft>", "warning");
 					return;
 				}
-				await rewrite(ctx, runEphemeralTurn, pi.pi.settings, draft);
+				await rewrite(ctx, pi, runEphemeralTurn, draft);
 			} finally {
 				busy = false;
 			}
