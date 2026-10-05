@@ -1,6 +1,6 @@
 {
   "name": "prompt-rewrite",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "/rewrite: turns a rough draft prompt into a thorough one, asking clarifying questions first, without adding anything to the conversation",
   "author": {
     "name": "Giuseppe Setaro"
