@@ -1,0 +1,40 @@
+{
+  "name": "prompt-rewrite",
+  "version": "0.4.0",
+  "description": "/rewrite: turns a rough draft prompt into a thorough one, asking clarifying questions first, without adding anything to the conversation",
+  "author": {
+    "name": "Giuseppe Setaro"
+  },
+  "homepage": "https://github.com/zPeppOz/prompt-rewrite",
+  "repository": "https://github.com/zPeppOz/prompt-rewrite",
+  "license": "MIT",
+  "keywords": ["prompt", "rewrite", "clarifying-questions", "slash-command", "mod"],
+  "userConfig": {
+    "model": {
+      "type": "string",
+      "title": "Rewrite model",
+      "description": "Model for /rewrite: an alias (haiku, sonnet, opus) or a full model id. Empty: the session's model, sharing its prompt cache.",
+      "default": ""
+    },
+    "effort": {
+      "type": "string",
+      "title": "Rewrite effort",
+      "description": "Effort for the rewrite model above; default leaves the model's own. The session's model keeps the session's effort.",
+      "options": ["default", "low", "medium", "high", "xhigh", "max"],
+      "default": "default"
+    },
+    "instructions": {
+      "type": "string",
+      "title": "Rewrite instructions",
+      "description": "Your instructions for the rewrite prompt, in every project. /rewrite-settings global <text> edits them on several lines.",
+      "default": ""
+    },
+    "instructions_mode": {
+      "type": "string",
+      "title": "Rewrite instructions mode",
+      "description": "append adds your instructions to the default rewrite rules, replace swaps the rules for them. A project's mode wins.",
+      "options": ["append", "replace"],
+      "default": "append"
+    }
+  }
+}

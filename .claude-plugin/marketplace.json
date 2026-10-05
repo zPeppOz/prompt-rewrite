@@ -4,13 +4,13 @@
     "name": "Giuseppe Setaro"
   },
   "metadata": {
-    "description": "omp marketplace for prompt-rewrite (/rewrite)"
+    "description": "Claude Code marketplace for prompt-rewrite (/rewrite)"
   },
   "plugins": [
     {
       "name": "prompt-rewrite",
-      "description": "/rewrite: turns a rough draft prompt into a thorough one, asking clarifying questions first, via a /btw-style side turn",
-      "version": "0.4.0",
+      "source": ".",
+      "description": "/rewrite: turns a rough draft prompt into a thorough one, asking clarifying questions first, without adding anything to the conversation",
       "author": {
         "name": "Giuseppe Setaro"
       },
@@ -18,8 +18,7 @@
       "repository": "https://github.com/zPeppOz/prompt-rewrite",
       "license": "MIT",
       "category": "productivity",
-      "keywords": ["prompt", "rewrite", "clarifying-questions", "slash-command", "extension"],
-      "source": "./"
+      "keywords": ["prompt", "rewrite", "clarifying-questions", "slash-command", "mod"]
     }
   ]
 }

@@ -5,9 +5,12 @@ import type {
 } from "@oh-my-pi/pi-coding-agent";
 import {
 	DEFAULT_MODE,
+	describeLayer,
 	type InstructionsEdit,
 	type InstructionsMode,
 	type LayerValues,
+	type ModeChoice,
+	modeChoices,
 	readLayer,
 	resolveInstructions,
 	type Scope,
@@ -185,28 +188,11 @@ async function rewrite(
 }
 
 /** Sceglie la modalità di combinazione; `undefined` = annullato. `"inherit"` solo per il progetto. */
-async function pickMode(
-	ctx: ExtensionCommandContext,
-	scope: Scope,
-	current: InstructionsMode | undefined,
-): Promise<InstructionsMode | "inherit" | undefined> {
-	const options = [
-		{ label: "append", description: "Your instructions are added to the default rewrite rules" },
-		{
-			label: "replace",
-			description: "Your instructions replace the default rewrite rules (the draft and your answers are still sent)",
-		},
-	];
-	if (scope === "project") {
-		options.unshift({ label: "inherit", description: `Use the global mode (default: ${DEFAULT_MODE})` });
-	}
-	const initialIndex = Math.max(0, options.findIndex(o => o.label === (current ?? (scope === "project" ? "inherit" : DEFAULT_MODE))));
+async function pickMode(ctx: ExtensionCommandContext, scope: Scope, current: InstructionsMode | undefined): Promise<ModeChoice | undefined> {
+	const { options, current: initialIndex } = modeChoices(scope, current);
 	const choice = await ctx.ui.select(`Custom instructions mode (${scope})`, options, { initialIndex });
-	return choice as InstructionsMode | "inherit" | undefined;
+	return choice as ModeChoice | undefined;
 }
-
-const describeLayer = ({ instructions, mode }: LayerValues) =>
-	instructions ? `${instructions.split("\n").length} line(s), mode ${mode ?? "default"}` : "not set";
 
 /**
  * /rewrite-settings: ambito → testo (salvare vuoto lo svuota) → modalità. Esc in un

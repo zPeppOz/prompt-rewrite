@@ -1,1 +1,4 @@
 node_modules/
+# Scritti da Claude Code quando carica la mod con --plugin-dir (tipi della versione installata).
+.claude-plugin/types/
+/tsconfig.json

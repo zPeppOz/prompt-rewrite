@@ -1,12 +1,13 @@
 {
-  "name": "omp-rewrite",
+  "name": "prompt-rewrite",
   "version": "0.4.0",
   "private": true,
-  "description": "/rewrite: turns a draft prompt into a thorough one, asking clarifying questions first, via a /btw-style side turn",
+  "description": "/rewrite for omp and Claude Code: turns a draft prompt into a thorough one, asking clarifying questions first, without adding to the conversation",
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "test": "bun test"
+    "test": "bun test --path-ignore-patterns 'tests/**'",
+    "test:mod": "claude plugin test"
   },
   "omp": {
     "extensions": ["./index.ts"]

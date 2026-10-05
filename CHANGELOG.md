@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Breaking
+
+- The project is now **prompt-rewrite**: the package, the plugin and its marketplace are named `prompt-rewrite` (`prompt-rewrite@prompt-rewrite`). Remove `omp-rewrite` (`/marketplace uninstall omp-rewrite@omp-rewrite`, or the `omp-rewrite` link) before installing the new name. The command is still `/rewrite`, and the omp settings keep their names.
+
+### Added
+
+- A Claude Code mod in the same repository, for Claude Code 2.1.289 or newer: `/rewrite` and `/rewrite-settings`, installable from the repository's Claude Code marketplace (`.claude-plugin/marketplace.json`). The requests are forks of the session (same model, system prompt and prompt cache, no tools), all the questions open in one dialog with option descriptions and the recommended option marked, Esc cancels, the result goes to the prompt box, and nothing is added to the conversation.
+- Claude Code options, as rows in `/config`: **Rewrite model** and **Rewrite effort** (another model gets the conversation as a transcript, like the omp role), and the global instructions and mode. Project instructions live in `.claude/rewrite.json`; `/rewrite-settings` with no arguments puts the current text in the prompt box for editing.
+
+### Changed
+
+- Each question from the model keeps at most 4 options, as its prompt already asked; the Claude Code dialog accepts no more.
+
 ## [0.4.0] - 2026-10-05
 
 ### Added

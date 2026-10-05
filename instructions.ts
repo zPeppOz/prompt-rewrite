@@ -114,3 +114,28 @@ export function applyEdit(raw: Record<string, unknown>, edit: InstructionsEdit):
 	if (keep && !(NAMESPACE in next)) next[NAMESPACE] = block;
 	return next;
 }
+
+/** Modalità scelta in /rewrite-settings: `inherit` toglie quella del progetto, che eredita la globale. */
+export type ModeChoice = InstructionsMode | "inherit";
+
+/**
+ * Le modalità tra cui scegliere per un ambito, con la loro spiegazione (`inherit` solo per
+ * il progetto), e l'indice di quella che corrisponde al livello com'è ora.
+ */
+export function modeChoices(
+	scope: Scope,
+	mode: InstructionsMode | undefined,
+): { options: { label: ModeChoice; description: string }[]; current: number } {
+	const options: { label: ModeChoice; description: string }[] = [
+		{ label: "append", description: "Your instructions are added to the default rewrite rules" },
+		{ label: "replace", description: "Your instructions replace the default rewrite rules (the draft and your answers are still sent)" },
+	];
+	if (scope === "project") options.unshift({ label: "inherit", description: `Use the global mode (default: ${DEFAULT_MODE})` });
+	const selected = mode ?? (scope === "project" ? "inherit" : DEFAULT_MODE);
+	return { options, current: Math.max(0, options.findIndex(o => o.label === selected)) };
+}
+
+/** Riassunto di un livello per la scelta dell'ambito: righe e modalità, o "not set". */
+export function describeLayer({ instructions, mode }: LayerValues): string {
+	return instructions ? `${instructions.split("\n").length} line(s), mode ${mode ?? "default"}` : "not set";
+}

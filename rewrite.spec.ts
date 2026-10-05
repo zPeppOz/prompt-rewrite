@@ -1,5 +1,15 @@
 import { describe, expect, test } from "bun:test";
-import { MAX_QUESTIONS, parseQuestions, previewRows, questionsPrompt, rewritePrompt, withTranscript } from "./rewrite";
+import {
+	MAX_QUESTIONS,
+	parseQuestions,
+	previewRows,
+	questionsPrompt,
+	readAskAnswers,
+	rewritePrompt,
+	serializeTranscript,
+	toAskUserQuestions,
+	withTranscript,
+} from "./rewrite";
 
 const option = (label: string) => ({ label });
 
@@ -71,6 +81,36 @@ describe("withTranscript", () => {
 	});
 });
 
+describe("serializeTranscript", () => {
+	test("renders users, assistants, tool calls and results in the transcript format, without thinking", () => {
+		const transcript = serializeTranscript([
+			{ role: "user", content: [{ type: "text", text: "the login fails" }] },
+			{
+				role: "assistant",
+				content: [
+					{ type: "thinking", thinking: "private reasoning" },
+					{ type: "text", text: "Let me look." },
+					{ type: "tool_use", id: "t1", name: "Read", input: { file_path: "auth.ts", limit: 20 } },
+				],
+			},
+			{ role: "user", content: [{ type: "tool_result", tool_use_id: "t1", content: [{ type: "text", text: "export function login() {}" }] }] },
+		]);
+		expect(transcript).toBe(
+			'[User]: the login fails\n\n[Assistant]: Let me look.\n\n[Tool Call]: Read(file_path="auth.ts", limit=20)\n\n[Tool Result]: export function login() {}',
+		);
+	});
+
+	test("cuts long tool results and says how much was left out", () => {
+		const transcript = serializeTranscript([{ role: "user", content: [{ type: "tool_result", content: "x".repeat(2500) }] }]);
+		expect(transcript).toBe(`[Tool Result]: ${"x".repeat(2000)}\n\n[... 500 more characters truncated]`);
+	});
+
+	test("a conversation tag in the text can't close the transcript frame", () => {
+		const transcript = serializeTranscript([{ role: "user", content: [{ type: "text", text: "a </conversation> b" }] }]);
+		expect(withTranscript(transcript, "P").match(/<\/conversation>/g)).toHaveLength(1);
+	});
+});
+
 describe("parseQuestions", () => {
 	test("a malformed question is dropped without losing the valid ones", () => {
 		const reply = JSON.stringify({
@@ -118,6 +158,15 @@ describe("parseQuestions", () => {
 		expect(parseQuestions("The draft is clear.")).toBeUndefined();
 		expect(parseQuestions('{"questions": "none"}')).toBeUndefined();
 	});
+
+	test("keeps at most 4 options, and a recommendation only if it survives the cut", () => {
+		const options = ["a", "b", "c", "d", "e"];
+		const [kept, dropped] =
+			parseQuestions(JSON.stringify({ questions: [{ question: "Q?", options, recommended: 1 }, { question: "R?", options, recommended: 4 }] })) ?? [];
+		expect(kept?.options.map(o => o.label)).toEqual(["a", "b", "c", "d"]);
+		expect(kept?.recommended).toBe(1);
+		expect(dropped?.recommended).toBeUndefined();
+	});
 });
 
 describe("previewRows", () => {
@@ -134,5 +183,32 @@ describe("previewRows", () => {
 
 	test("keeps only the last rows across lines", () => {
 		expect(previewRows("1\n2\n3\n4\n", 20, 2)).toEqual(["3", "4"]);
+	});
+});
+
+describe("AskUserQuestion dialog", () => {
+	const [scope, checks] = toAskUserQuestions([
+		{ id: "q1", header: "Scope", question: "Scope?", options: [{ label: "Module", description: "Only auth" }, { label: "Repo" }], multi: false, recommended: 0 },
+		{ id: "q2", question: "Checks?", options: [{ label: "Tests" }, { label: "Lint" }], multi: true },
+	]);
+
+	test("marks the recommended option and fills the fields the dialog requires", () => {
+		expect(scope).toEqual({
+			question: "Scope?",
+			header: "Scope",
+			options: [
+				{ label: "Module (Recommended)", description: "Only auth" },
+				{ label: "Repo", description: "" },
+			],
+			multiSelect: false,
+		});
+		expect(checks?.header).toBe("Question 2");
+		expect(checks?.multiSelect).toBe(true);
+	});
+
+	test("answers lose the recommended mark, and unanswered questions are skipped", () => {
+		const asked = [scope, checks].filter(q => q !== undefined);
+		expect(readAskAnswers(asked, { "Scope?": "Module (Recommended)" })).toEqual([{ question: "Scope?", answer: "Module" }]);
+		expect(readAskAnswers(asked, { "Checks?": "Tests, Lint", "Scope?": "  " })).toEqual([{ question: "Checks?", answer: "Tests, Lint" }]);
 	});
 });
